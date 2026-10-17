@@ -26,7 +26,7 @@ pip install -r requirements.txt
 **Model Weights (Already provided):**
 - [Pre-trained model](https://drive.google.com/drive/folders/1ol7bwABpCJfb_xmqN7WmkF2Ci_l8smCJ): download `checkpoint/transfer.pth` and put it into `IDeal/runs/scanrefer_train_butd_ESAregion_bigru/`
 - [Point cloud data](https://drive.google.com/drive/folders/18QE38xkDeuvgshaH1yiwbnHat7qEktzW): download `pt2vec_200_random_pos_val.npy`, `pt2vec_200_random_val.npy` and put them into `IDeal/lib/data/`
-- [Temp-results](https://drive.google.com/drive/folders/1ol7bwABpCJfb_xmqN7WmkF2Ci_l8smCJ): download `temp_result` and put it into `IDeal/`
+- [Temp-results](https://drive.google.com/drive/folders/1ol7bwABpCJfb_xmqN7WmkF2Ci_l8smCJ): download `temp_results` and put it into `IDeal/`
 - [BERT model](https://huggingface.co/google-bert/bert-base-uncased): download and put bert into `IDeal/`
 
 ### 3. Launch Demo
