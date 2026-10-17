@@ -43,10 +43,94 @@ def _reconstruct_question(round_idx, tag, initial_description, previous_answers)
     return question
 
 
+def _auto_scroll_js():
+    """Return JS string to auto-scroll chatbot to bottom."""
+    return r"""
+    () => {
+        // Wait for DOM to update after new messages are rendered
+        setTimeout(() => {
+            // Find the chatbot scroll container
+            const chatbotWrap = document.querySelector('.chatbot .wrap');
+            if (chatbotWrap) {
+                chatbotWrap.scrollTop = chatbotWrap.scrollHeight;
+            }
+            // Fallback: try by class names
+            const containers = document.querySelectorAll('.chatbot .scroll');
+            containers.forEach(el => {
+                el.scrollTop = el.scrollHeight;
+            });
+            // Last resort: find any scrollable ancestor
+            const msgContainer = document.querySelector('.chatbot .message:first-child')
+                || document.querySelector('.chatbot .bubble-wrap');
+            if (msgContainer) {
+                let el = msgContainer.parentElement;
+                while (el && el !== document.body) {
+                    if (el.scrollHeight > el.clientHeight) {
+                        el.scrollTop = el.scrollHeight;
+                        break;
+                    }
+                    el = el.parentElement;
+                }
+            }
+        }, 100);
+    }
+    """
+
+
+_SCROLL_JS = """
+() => {
+    setTimeout(() => {
+        const wrap = document.querySelector('.chatbot .wrap');
+        if (wrap) { wrap.scrollTop = wrap.scrollHeight; }
+        else {
+            const els = document.querySelectorAll('[class*="chatbot"]');
+            els.forEach(el => {
+                if (el.scrollHeight > el.clientHeight) el.scrollTop = el.scrollHeight;
+            });
+        }
+    }, 100);
+}
+"""
+
+
 def build_app():
     scene_list = get_scene_list()
 
-    with gr.Blocks(title="IDeal Interactive Demo", theme=gr.themes.Soft()) as app:
+    custom_css = """
+        .chatbot { overflow: hidden !important; }
+        .chatbot .wrap { overflow: hidden !important; }
+        .chatbot .bubble-wrap { overflow: hidden !important; }
+        .chatbot .message { overflow: hidden !important; }
+        ::-webkit-scrollbar { display: none; }
+        .chatbot, .chatbot * { scrollbar-width: none; }
+    """
+
+    # Inject JS to auto-scroll chatbot after each message update
+    auto_scroll_head = """<script>
+    (function() {
+        let lastCount = -1;
+        function checkAndScroll() {
+            var wrap = document.querySelector('.bubble-wrap');
+            if (!wrap) wrap = document.querySelector('.panel-wrap');
+            if (!wrap) return;
+            var rowCount = wrap.querySelectorAll('.message-row').length;
+            if (rowCount !== lastCount) {
+                lastCount = rowCount;
+                wrap.scrollTop = wrap.scrollHeight;
+            }
+        }
+        // Poll every 200ms to detect new messages
+        var pollInterval = setInterval(checkAndScroll, 200);
+        // Scroll on page load
+        setTimeout(checkAndScroll, 300);
+        // Cleanup on navigation
+        window.addEventListener('beforeunload', function() {
+            clearInterval(pollInterval);
+        });
+    })();
+    </script>"""
+
+    with gr.Blocks(title="IDeal Interactive Demo", theme=gr.themes.Soft(), css=custom_css, head=[auto_scroll_head]) as app:
         gr.Markdown("""
         # IDeal Interactive 3D Scene Retrieval Demo
         **Interactive Cross-modal Learning for Text-3D Scene Retrieval** (NeurIPS 2025)
@@ -150,6 +234,8 @@ def _build_auto_tab(block, scene_list):
             return messages
 
         def _replay(scene_id, qstr):
+            if not qstr:
+                return [], [], [], "Please select a query first."
             records = load_interactive_data().get(scene_id, [])
             idx = int(qstr.replace("Query ", "")) - 1
             rec = records[idx]
@@ -180,13 +266,13 @@ def _build_auto_tab(block, scene_list):
                 chat_messages.append([f"❓ Round {i+1} question ({msg_type}, entropy={etps[i]:.3f}):\n{question}", None])
                 yield chat_messages, [], "", f"Round {i+1}: Asking question..."
 
-                time.sleep(0.5)
+                time.sleep(1)
 
                 # Add answer
                 chat_messages.append([None, f"💬 Round {i+1} answer:\n{answer}"])
                 yield chat_messages, [], "", f"Round {i+1}: Received answer..."
 
-                time.sleep(0.5)
+                time.sleep(1)
 
             # Step 2: Compute retrieval after all messages are shown
             yield chat_messages, [], "", "⏳ Computing retrieval..."
@@ -242,8 +328,13 @@ def _build_auto_tab(block, scene_list):
             fn=_replay,
             inputs=[scene_dropdown, query_dropdown],
             outputs=[chatbot, result_df, scene_gallery, scene_info],
-            queue=True  # Enable streaming
+            queue=True,  # Enable streaming
         )
+
+        # Auto-scroll chatbot on each message update
+        def _scroll_chatbot():
+            pass
+        chatbot.change(fn=_scroll_chatbot)
 
         # Initialize
         init_records = load_interactive_data().get(scene_list[0], [])
